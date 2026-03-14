@@ -1,0 +1,19 @@
+version: '3.9'
+
+services:
+  weatherapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: manognavengala01/weather-api:latest
+    container_name: weather-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
