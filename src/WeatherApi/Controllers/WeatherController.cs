@@ -42,4 +42,17 @@ public class WeatherController : ControllerBase
             Summary = $"{Summaries[Random.Shared.Next(Summaries.Length)]} in {city}"
         };
     }
+    
+    [HttpGet("india")]
+    public IEnumerable<WeatherForecast> GetIndia()
+    {
+        _logger.LogInformation("Fetching weather forecasts for India");
+        string[] indianCities = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad"];
+        return indianCities.Select(city => new WeatherForecast
+        {
+            Date = DateOnly.FromDateTime(DateTime.Now),
+            TemperatureC = Random.Shared.Next(20, 45),
+            Summary = $"{Summaries[Random.Shared.Next(Summaries.Length)]} in {city}"
+        });
+    }
 }

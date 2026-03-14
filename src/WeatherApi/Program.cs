@@ -6,7 +6,6 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "Weather API", Version = "v1" });
 });
-
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
