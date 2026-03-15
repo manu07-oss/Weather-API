@@ -11,7 +11,7 @@ env:
   IMAGE_NAME: weather-api
 
 jobs:
-  # ── Job 1: Build & Test ─────────────────────────────────────
+  # ── Job 1: Build & Test ──────────────────────
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest

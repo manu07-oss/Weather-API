@@ -112,3 +112,17 @@ D:\Weather-API\tests\WeatherApi.Tests\obj\Debug\net8.0\refint\WeatherApi.Tests.d
 D:\Weather-API\tests\WeatherApi.Tests\obj\Debug\net8.0\WeatherApi.Tests.pdb
 D:\Weather-API\tests\WeatherApi.Tests\obj\Debug\net8.0\WeatherApi.Tests.genruntimeconfig.cache
 D:\Weather-API\tests\WeatherApi.Tests\obj\Debug\net8.0\ref\WeatherApi.Tests.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.Abstractions.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.InMemory.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.Relational.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.HealthChecks.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.Logging.Abstractions.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Microsoft.Extensions.Options.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Npgsql.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Npgsql.EntityFrameworkCore.PostgreSQL.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Prometheus.NetStandard.dll
+D:\Weather-API\tests\WeatherApi.Tests\bin\Debug\net8.0\Prometheus.AspNetCore.dll

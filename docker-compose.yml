@@ -1,6 +1,8 @@
 version: '3.9'
 
 services:
+
+  # ── API ─────────────────────────────────────────────────────
   weatherapi:
     build:
       context: .
@@ -8,12 +10,72 @@ services:
     image: manognavengala01/weather-api:latest
     container_name: weather-api
     ports:
-      - "8080:8080"
+      - "8085:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=weatherdb;Username=postgres;Password=postgres123
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+  # ── PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16
+    container_name: weather-db
+    environment:
+      POSTGRES_DB: weatherdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Prometheus ───────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: weather-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  # ── Grafana ──────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: weather-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ── Seq Logging ──────────────────────────────────────────────
+  seq:
+    image: datalust/seq:latest
+    container_name: weather-seq
+    ports:
+      - "5341:80"
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=admin123
+    volumes:
+      - seq_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  grafana_data:
+  seq_data:
