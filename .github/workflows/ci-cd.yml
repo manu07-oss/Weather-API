@@ -2,18 +2,20 @@ name: CI/CD Pipeline — Weather API
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
 env:
   DOTNET_VERSION: '8.0.x'
   IMAGE_NAME: weather-api
+  REGISTRY: docker.io
 
 jobs:
-  # ── Job 1: Build & Test ──────────────────────
-  build-and-test:
-    name: Build and Test
+
+  # ── Job 1: Code Quality ─────────────────────────────────────
+  code-quality:
+    name: Code Quality Check
     runs-on: ubuntu-latest
 
     steps:
@@ -28,18 +30,91 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Check code format
+        run: dotnet format --verify-no-changes --no-restore
+        continue-on-error: true
+
+  # ── Job 2: Build and Test ────────────────────────────────────
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      - name: Run tests
-        run: dotnet test --no-build -c Release --verbosity normal
+      - name: Run tests with coverage
+        run: dotnet test --no-build -c Release \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage
 
-  # ── Job 2: Docker Build & Push ──────────────────────────────
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: coverage/*.trx
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/**/coverage.cobertura.xml
+
+  # ── Job 3: Security Scan ─────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Scan for vulnerable packages
+        run: dotnet list src/WeatherApi/WeatherApi.csproj package --vulnerable --include-transitive
+        continue-on-error: true
+
+  # ── Job 4: Docker Build and Push ─────────────────────────────
   docker-build-push:
     name: Docker Build and Push
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: [build-and-test, security-scan]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout code
@@ -60,10 +135,13 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -72,3 +150,71 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Summary
+        run: |
+          echo "## Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** ${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+
+  # ── Job 5: Smoke Test ─────────────────────────────────────────
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Pull and run image
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker run -d \
+            --name smoke-test \
+            -p 8080:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Development \
+            -e ConnectionStrings__DefaultConnection="Host=localhost;Database=test" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          sleep 10
+
+      - name: Test health endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo "000")
+          echo "Health check status: $STATUS"
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "503" ]; then
+            echo "Container is responding"
+          else
+            echo "Container is not responding — status $STATUS"
+            docker logs smoke-test
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f smoke-test || true
+
+  # ── Job 6: Notify ─────────────────────────────────────────────
+  notify:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build-push, smoke-test]
+    if: always()
+
+    steps:
+      - name: Pipeline result
+        run: |
+          echo "## Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build and Test | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Push | ${{ needs.docker-build-push.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Test | ${{ needs.smoke-test.result }} |" >> $GITHUB_STEP_SUMMARY
